@@ -1,0 +1,47 @@
+NDKDIR ?= /Applications/Nuke5.1v6/Nuke5.1v6.app/Contents/MacOS
+SRCDIR = src
+OBJDIR = build/obj
+DISTDIR = dist
+
+# Set this to the directory OpenCV is installed in.
+OPENCVDIR ?= ???
+
+ALL = $(DISTDIR)/FaceDetect.dylib
+LINKS = $(foreach a,$(ALL),$(HOME)/.nuke/$(notdir $(a)))
+
+CXX ?= g++
+LINK ?= g++
+CXXFLAGS ?= -g -c -DUSE_GLEW -I$(NDKDIR)/include -I$(OPENCVDIR)/include -isysroot /Developer/SDKs/MacOSX10.4u.sdk -arch ppc -arch i386
+LINKFLAGS ?= -L$(NDKDIR) -L$(OPENCVDIR)/lib -Wl,-syslibroot,/Developer/SDKs/MacOSX10.4u.sdk -arch ppc -arch i386
+LIBS ?= -lDDImage -lcxcore -lcv -lhighgui -lcvaux
+LINKFLAGS += -bundle
+FRAMEWORKS ?= -framework QuartzCore -framework IOKit -framework CoreFoundation -framework Carbon -framework ApplicationServices -framework OpenGL -framework AGL -framework Quicktime
+
+
+all: $(ALL)
+
+
+install: $(LINKS)
+
+
+$(HOME)/.nuke/%.dylib: $(DISTDIR)/%.dylib
+	ln -s $(abspath $<) $@
+
+
+.PRECIOUS : $(OBJDIR)/%.os
+$(OBJDIR)/%.os: $(SRCDIR)/%.cpp
+	$(CXX) $(CXXFLAGS) -o $(@) $<
+
+
+$(DISTDIR)/%.dylib: $(OBJDIR)/%.os
+	$(LINK) $(LINKFLAGS) $(LIBS) $(FRAMEWORKS) -o $(@) $<
+
+
+.PHONY: uninstall
+uninstall:
+	rm -f $(LINKS)
+
+
+clean: uninstall
+	rm -f $(OBJDIR)/*.os $(ALL)
+
