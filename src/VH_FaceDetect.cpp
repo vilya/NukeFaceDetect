@@ -1,7 +1,7 @@
-static const char* const CLASS = "BasicOpenCV";
-static const char* const CATEGORY = "Image/BasicOpenCV";
-static const char* const DISPLAY_NAME = "BasicOpenCV";
-static const char* const HELP = "Performs some basic drawing operations.";
+static const char* const CLASS = "VH_FaceDetect";
+static const char* const CATEGORY = "Image/VH_FaceDetect";
+static const char* const DISPLAY_NAME = "VH_FaceDetect";
+static const char* const HELP = "Detects faces using the OpenCV library.";
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -21,12 +21,12 @@ using namespace DD::Image;
 // DECLARATIONS
 //
 
-class BasicOpenCV: public Iop {
+class VH_FaceDetect: public Iop {
 public:
     static const Description desc;
 
-    BasicOpenCV(Node* node);
-    virtual ~BasicOpenCV();
+    VH_FaceDetect(Node* node);
+    virtual ~VH_FaceDetect();
 
     virtual const char* Class() const;
     virtual const char* displayName() const;
@@ -58,7 +58,7 @@ private:
 // PUBLIC METHODS
 //
 
-BasicOpenCV::BasicOpenCV(Node *node) : Iop(node) {
+VH_FaceDetect::VH_FaceDetect(Node *node) : Iop(node) {
     m_cascadeFile = NULL;
     m_circleColor[0] = m_circleColor[1] = m_circleColor[2] = 0.8;
 
@@ -68,7 +68,7 @@ BasicOpenCV::BasicOpenCV(Node *node) : Iop(node) {
 }
 
 
-BasicOpenCV::~BasicOpenCV() {
+VH_FaceDetect::~VH_FaceDetect() {
     if (m_img != NULL) {
         cvReleaseImage(&m_img);
         m_img = NULL;
@@ -82,22 +82,22 @@ BasicOpenCV::~BasicOpenCV() {
 }
 
 
-const char* BasicOpenCV::Class() const {
+const char* VH_FaceDetect::Class() const {
     return desc.name;
 }
 
 
-const char* BasicOpenCV::displayName() const {
+const char* VH_FaceDetect::displayName() const {
     return DISPLAY_NAME;
 }
 
 
-const char* BasicOpenCV::node_help() const {
+const char* VH_FaceDetect::node_help() const {
     return HELP;
 }
 
 
-void BasicOpenCV::knobs(Knob_Callback f) {
+void VH_FaceDetect::knobs(Knob_Callback f) {
     File_knob(f, &m_cascadeFile, "cascadefile", "cascadefile");
     Color_knob(f, m_circleColor, "circleColor", "circle color");
 }
@@ -107,13 +107,13 @@ void BasicOpenCV::knobs(Knob_Callback f) {
 // PROTECTED METHODS
 //
 
-void BasicOpenCV::_validate(bool for_real) {
+void VH_FaceDetect::_validate(bool for_real) {
     fprintf(stderr, "_validate() called\n");
     copy_info();
 }
 
 
-void BasicOpenCV::_request(int x, int y, int r, int t,
+void VH_FaceDetect::_request(int x, int y, int r, int t,
                            ChannelMask channels, int count)
 {
     fprintf(stderr, "_request() called\n");
@@ -123,7 +123,7 @@ void BasicOpenCV::_request(int x, int y, int r, int t,
 }
 
 
-void BasicOpenCV::_open() {
+void VH_FaceDetect::_open() {
     fprintf(stderr, "_open() called\n");
 
     if (m_img != NULL) {
@@ -164,7 +164,7 @@ void BasicOpenCV::_open() {
 }
 
 
-void BasicOpenCV::engine(int y, int x, int r, ChannelMask channels, Row& row) {
+void VH_FaceDetect::engine(int y, int x, int r, ChannelMask channels, Row& row) {
     fprintf(stderr, "engine(y=%d, x=%d, r=%d) called\n", y, x, r);
 
     float* p[3];
@@ -190,7 +190,7 @@ void BasicOpenCV::engine(int y, int x, int r, ChannelMask channels, Row& row) {
 }
 
 
-void BasicOpenCV::_close() {
+void VH_FaceDetect::_close() {
     fprintf(stderr, "_close() called\n");
     if (m_img != NULL) {
         cvReleaseImage(&m_img);
@@ -203,7 +203,7 @@ void BasicOpenCV::_close() {
 // PRIVATE METHODS
 //
 
-IplImage *BasicOpenCV::build_opencv_image() const {
+IplImage *VH_FaceDetect::build_opencv_image() const {
     int w = info_.w();
     int h = info_.h();
 
@@ -246,7 +246,7 @@ IplImage *BasicOpenCV::build_opencv_image() const {
 }
 
 
-void BasicOpenCV::print_image_info() const {
+void VH_FaceDetect::print_image_info() const {
     if (m_img != NULL) {
         fprintf(stderr, "Loaded image:\n");
         fprintf(stderr, "    # channels:    %d\n", m_img->nChannels);
@@ -262,7 +262,7 @@ void BasicOpenCV::print_image_info() const {
 }
 
 
-void BasicOpenCV::detect_and_draw(IplImage *img) const {
+void VH_FaceDetect::detect_and_draw(IplImage *img) const {
     fprintf(stderr, "detect_and_draw called.\n");
 
     if (m_cascade != NULL) {
@@ -322,8 +322,8 @@ void BasicOpenCV::detect_and_draw(IplImage *img) const {
 //
 
 static Iop* build(Node *node) {
-    return new BasicOpenCV(node);
+    return new VH_FaceDetect(node);
 }
 
 
-const Iop::Description BasicOpenCV::desc(CLASS, CATEGORY, build);
+const Iop::Description VH_FaceDetect::desc(CLASS, CATEGORY, build);

@@ -5,15 +5,15 @@ DISTDIR = dist
 
 OPENCVDIR ?= /mnt/images1/vharvey/apps/opencv-1.0.0
 
-ALL = $(DISTDIR)/VilPlugin.so $(DISTDIR)/BasicOpenCV.so
+ALL = $(DISTDIR)/VH_FaceDetect.so
 LINKS = $(foreach a,$(ALL),$(HOME)/.nuke/$(notdir $(a)))
 
 # CXX ?= g++-4.1
 # LINK ?= g++-4.1
-#CXX = g++402
-#LINK = g++402
-CXX = g++
-LINK = g++
+CXX = g++402
+LINK = g++402
+#CXX = g++
+#LINK = g++
 CXXFLAGS ?= -g -c -DUSE_GLEW -I$(NDKDIR)/include -I$(OPENCVDIR)/include -fPIC
 LINKFLAGS ?= -L$(NDKDIR) -L$(OPENCVDIR)/lib
 LIBS ?= -lDDImage -lcxcore -lcv -lhighgui
