@@ -33,6 +33,8 @@ public:
     virtual const char* node_help() const;
     virtual void knobs(Knob_Callback f);
 
+    virtual int knob_changed(Knob *knob);
+
 protected:
     virtual void _validate(bool for_real);
     virtual void _request(int x, int y, int r, int t, ChannelMask channels, int count);
@@ -45,7 +47,6 @@ private:
     void print_image_info() const;
     void detect_and_draw(IplImage *img) const;
 
-    const char *m_filename;
     const char *m_cascadeFile;
 
     IplImage *m_img;
@@ -62,7 +63,6 @@ private:
 //
 
 BasicOpenCV::BasicOpenCV(Node *node) : Iop(node) {
-    m_filename = NULL;
     m_cascadeFile = NULL;
 
     m_img = NULL;
@@ -101,8 +101,12 @@ const char* BasicOpenCV::node_help() const {
 
 
 void BasicOpenCV::knobs(Knob_Callback f) {
-    File_knob(f, &m_filename, "imagefile", "imagefile");
     File_knob(f, &m_cascadeFile, "cascadefile", "cascadefile");
+}
+
+
+int BasicOpenCV::knob_changed(Knob *knob) {
+    fprintf(stderr, "Knob changed: ", knob->name_c_str());
 }
 
 
@@ -111,7 +115,7 @@ void BasicOpenCV::knobs(Knob_Callback f) {
 //
 
 void BasicOpenCV::_validate(bool for_real) {
-    fprintf(stderr, "_validate called\n");
+    fprintf(stderr, "_validate() called\n");
     copy_info();
     m_boxW = 32;
     m_boxH = 32;
@@ -121,7 +125,7 @@ void BasicOpenCV::_validate(bool for_real) {
 void BasicOpenCV::_request(int x, int y, int r, int t,
                            ChannelMask channels, int count)
 {
-    fprintf(stderr, "_request called\n");
+    fprintf(stderr, "_request() called\n");
 
     // We need to request the whole input image here, unfortunately.
     input0().request(0, 0, info_.w(), info_.h(), channels, count);
@@ -129,7 +133,7 @@ void BasicOpenCV::_request(int x, int y, int r, int t,
 
 
 void BasicOpenCV::_open() {
-    fprintf(stderr, "_open called\n");
+    fprintf(stderr, "_open() called\n");
 
     if (m_img != NULL) {
         cvReleaseImage(&m_img);
@@ -141,30 +145,32 @@ void BasicOpenCV::_open() {
         m_cascade = NULL;
     }
 
-    if (m_filename != NULL && strlen(m_filename) > 0) {
-        m_img = cvLoadImage(m_filename, 1);
-        if (m_img == NULL) {
-            error("Unable to load the source image.");
-            return;
-        }
+    m_img = build_opencv_image();
+    if (m_img == NULL) {
+        error("Unable to load the source image.");
+        return;
     }
     print_image_info();
 
-    if (m_cascadeFile != NULL && strlen(m_cascadeFile) > 0) {
-        m_cascade = (CvHaarClassifierCascade *)cvLoad(m_cascadeFile);
-        if (m_cascade == NULL) {
-            error("Unable to load the Haar classifier cascade file.");
-            return;
-        }
-    }
-
-    if (m_img != NULL && m_cascade != NULL)
-        detect_and_draw(m_img);
+//    if (m_cascadeFile != NULL && strlen(m_cascadeFile) > 0) {
+//        fprintf(stderr, "_open(): Loading Haar classifier cascade file '%s'.\n",
+//                m_cascadeFile);
+//        m_cascade = (CvHaarClassifierCascade *)cvLoad(m_cascadeFile, 0, 0, 0);
+//        fprintf(stderr, "_open(): Finished loading Haar classifier cascade file.\n");
+//        if (m_cascade == NULL) {
+//            error("Unable to load the Haar classifier cascade file '%s'.",
+//                    m_cascadeFile);
+//            return;
+//        }
+//    }
+//
+//    if (m_img != NULL && m_cascade != NULL)
+//        detect_and_draw(m_img);
 }
 
 
 void BasicOpenCV::engine(int y, int x, int r, ChannelMask channels, Row& row) {
-    fprintf(stderr, "engine called\n");
+    fprintf(stderr, "engine(y=%d, x=%d, r=%d) called\n", y, x, r);
 
     float* p[3];
     p[0] = row.writable(Chan_Blue);
@@ -238,7 +244,7 @@ IplImage *BasicOpenCV::build_opencv_image() const {
 
 void BasicOpenCV::print_image_info() const {
     if (m_img != NULL) {
-        fprintf(stderr, "Loaded image %s:\n", m_filename);
+        fprintf(stderr, "Loaded image:\n");
         fprintf(stderr, "    # channels:    %d\n", m_img->nChannels);
         fprintf(stderr, "    alpha channel: %d\n", m_img->alphaChannel);
         fprintf(stderr, "    depth:         %d\n", m_img->depth);
@@ -253,26 +259,38 @@ void BasicOpenCV::print_image_info() const {
 
 
 void BasicOpenCV::detect_and_draw(IplImage *img) const {
-    double scale = 1.3;
-    IplImage* gray = cvCreateImage(cvSize(img->width,img->height), 8, 1);
-    IplImage* small_img = cvCreateImage(
-            cvSize(cvRound (img->width/scale), cvRound (img->height/scale)),
-            8, 1);
-
-    cvCvtColor(img, gray, CV_BGR2GRAY);
-    cvResize(gray, small_img, CV_INTER_LINEAR);
-    cvEqualizeHist(small_img, small_img);
-    cvClearMemStorage(m_storage);
+    fprintf(stderr, "detect_and_draw called.\n");
 
     if (m_cascade != NULL) {
+        fprintf(stderr, "detect_and_draw: m_cascade is not null, attempting face detection.\n");
+
+        double scale = 1.3;
+        IplImage* gray = cvCreateImage(cvSize(img->width,img->height), 8, 1);
+        IplImage* small_img = cvCreateImage(
+                cvSize(cvRound (img->width/scale), cvRound (img->height/scale)),
+                8, 1);
+
+        fprintf(stderr, "detect_and_draw: converting source image to grayscale.\n");
+        cvCvtColor(img, gray, CV_BGR2GRAY);
+        fprintf(stderr, "detect_and_draw: resizing grayscale image.\n");
+        cvResize(gray, small_img, CV_INTER_LINEAR);
+        fprintf(stderr, "detect_and_draw: calling cvEqualizeHist on small image.\n");
+        cvEqualizeHist(small_img, small_img);
+        fprintf(stderr, "detect_and_draw: clearing storage space.\n");
+        cvClearMemStorage(m_storage);
+
         double t = (double)cvGetTickCount();
+        fprintf(stderr, "detect_and_draw: running Haar detection on small image.\n");
         CvSeq* faces = cvHaarDetectObjects( small_img, m_cascade, m_storage,
                                             1.1, 2, 0/*CV_HAAR_DO_CANNY_PRUNING*/,
                                             cvSize(30, 30) );
         t = (double)cvGetTickCount() - t;
         fprintf(stderr, "detection time = %gms\n", t/((double)cvGetTickFrequency()*1000.0));
 
+        fprintf(stderr, "detect_and_draw: drawing circles around detected faces.\n");
         for(int i = 0; i < (faces ? faces->total : 0); i++) {
+            fprintf(stderr, "detect_and_draw: drawing circles around detected faces %d.\n", i);
+
             CvRect* r = (CvRect*)cvGetSeqElem( faces, i );
             CvPoint center;
             int radius;
@@ -281,10 +299,13 @@ void BasicOpenCV::detect_and_draw(IplImage *img) const {
             radius = cvRound((r->width + r->height)*0.25*scale);
             cvCircle(img, center, radius, cvScalar(0.75, 0.75, 0.75, 1.0), 3, 8, 0);
         }
+        fprintf(stderr, "detect_and_draw: finished drawing.\n");
+
+        cvReleaseImage( &gray );
+        cvReleaseImage( &small_img );
     }
 
-    cvReleaseImage( &gray );
-    cvReleaseImage( &small_img );
+    fprintf(stderr, "finished detect_and_draw.\n");
 }
 
 
