@@ -1,0 +1,47 @@
+NDKDIR ?= /opt/foundry/nuke-5.1v4
+SRCDIR = src
+OBJDIR = build/obj
+DISTDIR = dist
+
+OPENCVDIR ?= /mnt/images1/vharvey/apps/opencv-1.0.0
+
+ALL = $(DISTDIR)/VilPlugin.so $(DISTDIR)/BasicOpenCV.so
+LINKS = $(foreach a,$(ALL),$(HOME)/.nuke/$(notdir $(a)))
+
+# CXX ?= g++-4.1
+# LINK ?= g++-4.1
+CXX ?= g++
+LINK ?= g++
+CXXFLAGS ?= -g -c -DUSE_GLEW -I$(NDKDIR)/include -I$(OPENCVDIR)/include -fPIC
+LINKFLAGS ?= -L$(NDKDIR) -L$(OPENCVDIR)/lib
+LIBS ?= -lDDImage -lcxcore -lcv -lhighgui -lcvaux
+LINKFLAGS += -shared
+
+
+all: $(ALL)
+
+
+install: $(LINKS)
+
+
+$(HOME)/.nuke/%.so: $(DISTDIR)/%.so
+	ln -s $(abspath $<) $@
+
+
+.PRECIOUS : $(OBJDIR)/%.o
+$(OBJDIR)/%.o: $(SRCDIR)/%.cpp
+	$(CXX) $(CXXFLAGS) -o $(@) $<
+
+
+$(DISTDIR)/%.so: $(OBJDIR)/%.o
+	$(LINK) $(LINKFLAGS) $(LIBS) -o $(@) $<
+
+
+.PHONY: uninstall
+uninstall:
+	rm -f $(LINKS)
+
+
+clean: uninstall
+	rm -f $(OBJDIR)/*.o $(ALL)
+
