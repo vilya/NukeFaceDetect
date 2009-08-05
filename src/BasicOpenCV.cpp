@@ -9,7 +9,7 @@ static const char* const HELP = "Performs some basic drawing operations.";
 #include <DDImage/Iop.h>
 #include <DDImage/Row.h>
 #include <DDImage/Knobs.h>
-#include <DDImage/NukeWrapper.h>
+#include <DDImage/Tile.h>
 
 #include <opencv/cv.h>
 #include <opencv/highgui.h>
@@ -41,11 +41,10 @@ protected:
     virtual void _close();
 
 private:
+    IplImage *build_opencv_image() const;
     void print_image_info() const;
     void detect_and_draw(IplImage *img) const;
 
-    FormatPair m_formats;
-    double m_boxsize[2];
     const char *m_filename;
     const char *m_cascadeFile;
 
@@ -63,9 +62,6 @@ private:
 //
 
 BasicOpenCV::BasicOpenCV(Node *node) : Iop(node) {
-    inputs(0);
-    m_boxsize[0] = 32;
-    m_boxsize[1] = 32;
     m_filename = NULL;
     m_cascadeFile = NULL;
 
@@ -105,9 +101,6 @@ const char* BasicOpenCV::node_help() const {
 
 
 void BasicOpenCV::knobs(Knob_Callback f) {
-    Format_knob(f, &m_formats, "format");
-    WH_knob(f, m_boxsize, IRange(1, 100), "boxsize", "size");
-    SetFlags(f, Knob::SLIDER);
     File_knob(f, &m_filename, "imagefile", "imagefile");
     File_knob(f, &m_cascadeFile, "cascadefile", "cascadefile");
 }
@@ -119,14 +112,9 @@ void BasicOpenCV::knobs(Knob_Callback f) {
 
 void BasicOpenCV::_validate(bool for_real) {
     fprintf(stderr, "_validate called\n");
-
-    info_.full_size_format(*m_formats.fullSizeFormat());
-    info_.format(*m_formats.format());
-    info_.channels(Mask_RGB);
-    info_.set(format());
-
-    m_boxW = MAX(fast_rint(m_boxsize[0]), 1L);
-    m_boxH = MAX(fast_rint(m_boxsize[1]), 1L);
+    copy_info();
+    m_boxW = 32;
+    m_boxH = 32;
 }
 
 
@@ -134,6 +122,9 @@ void BasicOpenCV::_request(int x, int y, int r, int t,
                            ChannelMask channels, int count)
 {
     fprintf(stderr, "_request called\n");
+
+    // We need to request the whole input image here, unfortunately.
+    input0().request(0, 0, info_.w(), info_.h(), channels, count);
 }
 
 
@@ -213,6 +204,37 @@ void BasicOpenCV::_close() {
 //
 // PRIVATE METHODS
 //
+
+IplImage *BasicOpenCV::build_opencv_image() const {
+    int w = info_.w();
+    int h = info_.h();
+
+    // Load the entire source image into the cache.
+    Tile tile(input0(), 0, 0, w, h, Mask_RGB);
+    if (Op::aborted())
+        return NULL;
+
+    IplImage *img = cvCreateImage(cvSize(w, h), 8, 3);
+    char *pixel;;
+    for (int y = 0; y < h; ++y) {
+        // Get the incoming pixel data for this row.
+        Row in(0, w);
+        in.get(input0(), y, 0, w, Mask_RGB);
+
+        // Write the pixels to the OpenCV image.
+        int imgY = h - y;
+        pixel = img->imageData + imgY * img->widthStep;
+        for (int x = 0; x < w; ++x) {
+            pixel[0] = (char)fast_rint(in[Chan_Blue][x] * 255.0);
+            pixel[1] = (char)fast_rint(in[Chan_Green][x] * 255.0);
+            pixel[2] = (char)fast_rint(in[Chan_Red][x] * 255.0);
+            pixel += 3;
+        }
+    }
+
+    return img;
+}
+
 
 void BasicOpenCV::print_image_info() const {
     if (m_img != NULL) {
