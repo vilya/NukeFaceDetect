@@ -33,8 +33,6 @@ public:
     virtual const char* node_help() const;
     virtual void knobs(Knob_Callback f);
 
-//    virtual int knob_changed(Knob *knob);
-
 protected:
     virtual void _validate(bool for_real);
     virtual void _request(int x, int y, int r, int t, ChannelMask channels, int count);
@@ -60,7 +58,7 @@ private:
 //
 
 BasicOpenCV::BasicOpenCV(Node *node) : Iop(node) {
-    m_cascadeFile = "/mnt/images1/vharvey/src/NukeHelloWorld/data/haarcascades/haarcascade_frontalface_alt2.xml";
+    m_cascadeFile = NULL;
 
     m_img = NULL;
     m_storage = cvCreateMemStorage(0);
@@ -98,13 +96,8 @@ const char* BasicOpenCV::node_help() const {
 
 
 void BasicOpenCV::knobs(Knob_Callback f) {
-//    File_knob(f, &m_cascadeFile, "cascadefile", "cascadefile");
+    File_knob(f, &m_cascadeFile, "cascadefile", "cascadefile");
 }
-
-
-//int BasicOpenCV::knob_changed(Knob *knob) {
-//    fprintf(stderr, "Knob changed: ", knob->name_c_str());
-//}
 
 
 //
