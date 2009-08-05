@@ -46,6 +46,7 @@ private:
     void detect_and_draw(IplImage *img) const;
 
     const char *m_cascadeFile;
+    float m_circleColor[3];
 
     IplImage *m_img;
     CvMemStorage *m_storage;
@@ -59,6 +60,7 @@ private:
 
 BasicOpenCV::BasicOpenCV(Node *node) : Iop(node) {
     m_cascadeFile = NULL;
+    m_circleColor[0] = m_circleColor[1] = m_circleColor[2] = 0.8;
 
     m_img = NULL;
     m_storage = cvCreateMemStorage(0);
@@ -97,6 +99,7 @@ const char* BasicOpenCV::node_help() const {
 
 void BasicOpenCV::knobs(Knob_Callback f) {
     File_knob(f, &m_cascadeFile, "cascadefile", "cascadefile");
+    Color_knob(f, m_circleColor, "circleColor", "circle color");
 }
 
 
@@ -289,6 +292,10 @@ void BasicOpenCV::detect_and_draw(IplImage *img) const {
         fprintf(stderr, "detection time = %gms\n", t/((double)cvGetTickFrequency()*1000.0));
 
         fprintf(stderr, "detect_and_draw: drawing circles around detected faces.\n");
+        CvScalar color = cvScalar( fast_rint(m_circleColor[2] * 255.0),
+                                   fast_rint(m_circleColor[1] * 255.0),
+                                   fast_rint(m_circleColor[0] * 255.0),
+                                   1.0 );
         for(int i = 0; i < (faces ? faces->total : 0); i++) {
             fprintf(stderr, "detect_and_draw: drawing circles around detected faces %d.\n", i);
 
@@ -298,7 +305,7 @@ void BasicOpenCV::detect_and_draw(IplImage *img) const {
             center.x = cvRound((r->x + r->width*0.5)*scale);
             center.y = cvRound((r->y + r->height*0.5)*scale);
             radius = cvRound((r->width + r->height)*0.25*scale);
-            cvCircle(img, center, radius, cvScalar(0.75, 0.75, 0.75, 1.0), 3, 8, 0);
+            cvCircle(img, center, radius, color, 3, 8, 0);
         }
         fprintf(stderr, "detect_and_draw: finished drawing.\n");
 
