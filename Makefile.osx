@@ -3,6 +3,7 @@ SRCDIR = src
 OBJDIR = build/obj
 DISTDIR = dist
 
+# Set this to the directory OpenCV is installed in.
 OPENCVDIR ?= ???
 
 ALL = $(DISTDIR)/VilPlugin.dylib $(DISTDIR)/BasicOpenCV.dylib
