@@ -33,7 +33,7 @@ public:
     virtual const char* node_help() const;
     virtual void knobs(Knob_Callback f);
 
-    virtual int knob_changed(Knob *knob);
+//    virtual int knob_changed(Knob *knob);
 
 protected:
     virtual void _validate(bool for_real);
@@ -50,9 +50,6 @@ private:
     const char *m_cascadeFile;
 
     IplImage *m_img;
-    int m_boxW;
-    int m_boxH;
-
     CvMemStorage *m_storage;
     CvHaarClassifierCascade *m_cascade;
 };
@@ -63,7 +60,7 @@ private:
 //
 
 BasicOpenCV::BasicOpenCV(Node *node) : Iop(node) {
-    m_cascadeFile = NULL;
+    m_cascadeFile = "/mnt/images1/vharvey/src/NukeHelloWorld/data/haarcascades/haarcascade_frontalface_alt2.xml";
 
     m_img = NULL;
     m_storage = cvCreateMemStorage(0);
@@ -101,13 +98,13 @@ const char* BasicOpenCV::node_help() const {
 
 
 void BasicOpenCV::knobs(Knob_Callback f) {
-    File_knob(f, &m_cascadeFile, "cascadefile", "cascadefile");
+//    File_knob(f, &m_cascadeFile, "cascadefile", "cascadefile");
 }
 
 
-int BasicOpenCV::knob_changed(Knob *knob) {
-    fprintf(stderr, "Knob changed: ", knob->name_c_str());
-}
+//int BasicOpenCV::knob_changed(Knob *knob) {
+//    fprintf(stderr, "Knob changed: ", knob->name_c_str());
+//}
 
 
 //
@@ -117,8 +114,6 @@ int BasicOpenCV::knob_changed(Knob *knob) {
 void BasicOpenCV::_validate(bool for_real) {
     fprintf(stderr, "_validate() called\n");
     copy_info();
-    m_boxW = 32;
-    m_boxH = 32;
 }
 
 
@@ -145,6 +140,7 @@ void BasicOpenCV::_open() {
         m_cascade = NULL;
     }
 
+    fprintf(stderr, "_open(): Building a source image for OpenCV\n");
     m_img = build_opencv_image();
     if (m_img == NULL) {
         error("Unable to load the source image.");
@@ -152,20 +148,23 @@ void BasicOpenCV::_open() {
     }
     print_image_info();
 
-//    if (m_cascadeFile != NULL && strlen(m_cascadeFile) > 0) {
-//        fprintf(stderr, "_open(): Loading Haar classifier cascade file '%s'.\n",
-//                m_cascadeFile);
-//        m_cascade = (CvHaarClassifierCascade *)cvLoad(m_cascadeFile, 0, 0, 0);
-//        fprintf(stderr, "_open(): Finished loading Haar classifier cascade file.\n");
-//        if (m_cascade == NULL) {
-//            error("Unable to load the Haar classifier cascade file '%s'.",
-//                    m_cascadeFile);
-//            return;
-//        }
-//    }
-//
-//    if (m_img != NULL && m_cascade != NULL)
-//        detect_and_draw(m_img);
+    if (m_cascadeFile != NULL && strlen(m_cascadeFile) > 0) {
+        fprintf(stderr, "_open(): Loading Haar classifier cascade file '%s'.\n",
+                m_cascadeFile);
+        m_cascade = (CvHaarClassifierCascade *)cvLoad(m_cascadeFile, m_storage, 0, 0);
+        fprintf(stderr, "_open(): Finished loading Haar classifier cascade file.\n");
+        if (m_cascade == NULL) {
+            error("Unable to load the Haar classifier cascade file '%s'.",
+                    m_cascadeFile);
+            return;
+        }
+    } else {
+        fprintf(stderr, "_open(): No cascadefile set, so we won't do any face detection.");
+    }
+
+    if (m_img != NULL && m_cascade != NULL) {
+        detect_and_draw(m_img);
+    }
 }
 
 
@@ -178,7 +177,7 @@ void BasicOpenCV::engine(int y, int x, int r, ChannelMask channels, Row& row) {
     p[2] = row.writable(Chan_Red);
 
     if (m_img != NULL) {
-        y = m_img->height - y;
+        y = m_img->height - y - 1;
         unsigned char *pixel = (unsigned char *)m_img->imageData + y * m_img->widthStep;
         for (int i = x; i < r; ++i) {
             for (int channel = 0; channel < 3; ++channel)
@@ -187,12 +186,9 @@ void BasicOpenCV::engine(int y, int x, int r, ChannelMask channels, Row& row) {
         }
     } else {
         for (int i = x; i < r; ++i) {
-            bool in_box = (((i / m_boxW) + (y / m_boxH)) % 2) == 0;
-            if (in_box) {
-                p[0][i] = 0.75f;
-                p[1][i] = 0.75f;
-                p[2][i] = 0.75f;
-            }
+            p[0][i] = 0.0f;
+            p[1][i] = 0.0f;
+            p[2][i] = 0.0f;
         }
     }
 }
@@ -221,16 +217,28 @@ IplImage *BasicOpenCV::build_opencv_image() const {
         return NULL;
 
     IplImage *img = cvCreateImage(cvSize(w, h), 8, 3);
-    char *pixel;;
+    char *pixel;
+    char *min_pixel = img->imageData;
+    char *max_pixel = img->imageData + img->imageSize;
+
     for (int y = 0; y < h; ++y) {
         // Get the incoming pixel data for this row.
         Row in(0, w);
         in.get(input0(), y, 0, w, Mask_RGB);
 
         // Write the pixels to the OpenCV image.
-        int imgY = h - y;
+        int imgY = h - y - 1;
         pixel = img->imageData + imgY * img->widthStep;
         for (int x = 0; x < w; ++x) {
+            if (pixel < min_pixel) {
+                fprintf(stderr, "pixel < min_pixel\n");
+                fprintf(stderr, "  at: x=%d, y=%d, imgY=%d\n", x, y, imgY);
+                break;
+            } else if ((pixel+2) >= max_pixel) {
+                fprintf(stderr, "pixel + 2 >= min_pixel\n");
+                fprintf(stderr, "  at: x=%d, y=%d, imgY=%d\n", x, y, imgY);
+                break;
+            }
             pixel[0] = (char)fast_rint(in[Chan_Blue][x] * 255.0);
             pixel[1] = (char)fast_rint(in[Chan_Green][x] * 255.0);
             pixel[2] = (char)fast_rint(in[Chan_Red][x] * 255.0);

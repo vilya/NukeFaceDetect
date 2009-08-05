@@ -10,11 +10,11 @@ LINKS = $(foreach a,$(ALL),$(HOME)/.nuke/$(notdir $(a)))
 
 # CXX ?= g++-4.1
 # LINK ?= g++-4.1
-CXX ?= g++
-LINK ?= g++
+CXX = g++402
+LINK = g++402
 CXXFLAGS ?= -g -c -DUSE_GLEW -I$(NDKDIR)/include -I$(OPENCVDIR)/include -fPIC
 LINKFLAGS ?= -L$(NDKDIR) -L$(OPENCVDIR)/lib
-LIBS ?= -lDDImage -lcxcore -lcv -lhighgui -lcvaux
+LIBS ?= -lDDImage -lcxcore -lcv -lhighgui
 LINKFLAGS += -shared
 
 
@@ -45,3 +45,7 @@ uninstall:
 clean: uninstall
 	rm -f $(OBJDIR)/*.o $(ALL)
 
+
+.PHONY: run
+run: install
+	$(NDKDIR)/nuke
