@@ -4,3 +4,4 @@ Makefile
 build/obj/*
 dist/*
 *.nk~
+*.nk.autosave
