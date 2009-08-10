@@ -108,7 +108,6 @@ void VH_FaceDetect::knobs(Knob_Callback f) {
 //
 
 void VH_FaceDetect::_validate(bool for_real) {
-    fprintf(stderr, "_validate() called\n");
     copy_info();
 }
 
@@ -116,16 +115,12 @@ void VH_FaceDetect::_validate(bool for_real) {
 void VH_FaceDetect::_request(int x, int y, int r, int t,
                            ChannelMask channels, int count)
 {
-    fprintf(stderr, "_request() called\n");
-
     // We need to request the whole input image here, unfortunately.
     input0().request(0, 0, info_.w(), info_.h(), channels, count);
 }
 
 
 void VH_FaceDetect::_open() {
-    fprintf(stderr, "_open() called\n");
-
     if (m_img != NULL) {
         cvReleaseImage(&m_img);
         m_img = NULL;
@@ -136,26 +131,20 @@ void VH_FaceDetect::_open() {
         m_cascade = NULL;
     }
 
-    fprintf(stderr, "_open(): Building a source image for OpenCV\n");
     m_img = build_opencv_image();
     if (m_img == NULL) {
         error("Unable to load the source image.");
         return;
     }
-    print_image_info();
+    //print_image_info();
 
     if (m_cascadeFile != NULL && strlen(m_cascadeFile) > 0) {
-        fprintf(stderr, "_open(): Loading Haar classifier cascade file '%s'.\n",
-                m_cascadeFile);
         m_cascade = (CvHaarClassifierCascade *)cvLoad(m_cascadeFile, m_storage, 0, 0);
-        fprintf(stderr, "_open(): Finished loading Haar classifier cascade file.\n");
         if (m_cascade == NULL) {
             error("Unable to load the Haar classifier cascade file '%s'.",
                     m_cascadeFile);
             return;
         }
-    } else {
-        fprintf(stderr, "_open(): No cascadefile set, so we won't do any face detection.");
     }
 
     if (m_img != NULL && m_cascade != NULL) {
@@ -165,8 +154,6 @@ void VH_FaceDetect::_open() {
 
 
 void VH_FaceDetect::engine(int y, int x, int r, ChannelMask channels, Row& row) {
-    fprintf(stderr, "engine(y=%d, x=%d, r=%d) called\n", y, x, r);
-
     float* p[3];
     p[0] = row.writable(Chan_Blue);
     p[1] = row.writable(Chan_Green);
@@ -191,7 +178,6 @@ void VH_FaceDetect::engine(int y, int x, int r, ChannelMask channels, Row& row) 
 
 
 void VH_FaceDetect::_close() {
-    fprintf(stderr, "_close() called\n");
     if (m_img != NULL) {
         cvReleaseImage(&m_img);
         m_img = NULL;
@@ -226,15 +212,6 @@ IplImage *VH_FaceDetect::build_opencv_image() const {
         int imgY = h - y - 1;
         pixel = img->imageData + imgY * img->widthStep;
         for (int x = 0; x < w; ++x) {
-            if (pixel < min_pixel) {
-                fprintf(stderr, "pixel < min_pixel\n");
-                fprintf(stderr, "  at: x=%d, y=%d, imgY=%d\n", x, y, imgY);
-                break;
-            } else if ((pixel+2) >= max_pixel) {
-                fprintf(stderr, "pixel + 2 >= min_pixel\n");
-                fprintf(stderr, "  at: x=%d, y=%d, imgY=%d\n", x, y, imgY);
-                break;
-            }
             pixel[0] = (char)fast_rint(in[Chan_Blue][x] * 255.0);
             pixel[1] = (char)fast_rint(in[Chan_Green][x] * 255.0);
             pixel[2] = (char)fast_rint(in[Chan_Red][x] * 255.0);
@@ -263,42 +240,26 @@ void VH_FaceDetect::print_image_info() const {
 
 
 void VH_FaceDetect::detect_and_draw(IplImage *img) const {
-    fprintf(stderr, "detect_and_draw called.\n");
-
     if (m_cascade != NULL) {
-        fprintf(stderr, "detect_and_draw: m_cascade is not null, attempting face detection.\n");
-
         double scale = 1.3;
         IplImage* gray = cvCreateImage(cvSize(img->width,img->height), 8, 1);
         IplImage* small_img = cvCreateImage(
                 cvSize(cvRound (img->width/scale), cvRound (img->height/scale)),
                 8, 1);
 
-        fprintf(stderr, "detect_and_draw: converting source image to grayscale.\n");
         cvCvtColor(img, gray, CV_BGR2GRAY);
-        fprintf(stderr, "detect_and_draw: resizing grayscale image.\n");
         cvResize(gray, small_img, CV_INTER_LINEAR);
-        fprintf(stderr, "detect_and_draw: calling cvEqualizeHist on small image.\n");
         cvEqualizeHist(small_img, small_img);
-        fprintf(stderr, "detect_and_draw: clearing storage space.\n");
         cvClearMemStorage(m_storage);
 
-        double t = (double)cvGetTickCount();
-        fprintf(stderr, "detect_and_draw: running Haar detection on small image.\n");
         CvSeq* faces = cvHaarDetectObjects( small_img, m_cascade, m_storage,
                                             1.1, 2, 0/*CV_HAAR_DO_CANNY_PRUNING*/,
                                             cvSize(30, 30) );
-        t = (double)cvGetTickCount() - t;
-        fprintf(stderr, "detection time = %gms\n", t/((double)cvGetTickFrequency()*1000.0));
-
-        fprintf(stderr, "detect_and_draw: drawing circles around detected faces.\n");
         CvScalar color = cvScalar( fast_rint(m_circleColor[2] * 255.0),
                                    fast_rint(m_circleColor[1] * 255.0),
                                    fast_rint(m_circleColor[0] * 255.0),
                                    1.0 );
         for(int i = 0; i < (faces ? faces->total : 0); i++) {
-            fprintf(stderr, "detect_and_draw: drawing circles around detected faces %d.\n", i);
-
             CvRect* r = (CvRect*)cvGetSeqElem( faces, i );
             CvPoint center;
             int radius;
@@ -307,13 +268,10 @@ void VH_FaceDetect::detect_and_draw(IplImage *img) const {
             radius = cvRound((r->width + r->height)*0.25*scale);
             cvCircle(img, center, radius, color, 3, 8, 0);
         }
-        fprintf(stderr, "detect_and_draw: finished drawing.\n");
 
         cvReleaseImage( &gray );
         cvReleaseImage( &small_img );
     }
-
-    fprintf(stderr, "finished detect_and_draw.\n");
 }
 
 
