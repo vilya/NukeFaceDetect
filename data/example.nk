@@ -1,0 +1,64 @@
+#! /opt/foundry/nuke-5.1v4/Nuke5.1 -nx
+version 5.1400
+define_window_layout_xml {<?xml version="1.0" encoding="UTF-8"?>
+<layout version="1.0">
+    <window x="0" y="0" w="1608" h="1172" screen="0">
+        <splitter orientation="1">
+            <split size="1207"></split>
+            <splitter orientation="1">
+                <split size="45"></split>
+                <dock id="" hideTitles="1" activePageId="Toolbar.1">
+                    <page id="Toolbar.1"></page>
+                </dock>
+                <split size="1158"></split>
+                <splitter orientation="2">
+                    <split size="760"></split>
+                    <dock id="" activePageId="Viewer.1">
+                        <page id="Viewer.1"></page>
+                    </dock>
+                    <split size="351"></split>
+                    <dock id="" activePageId="DAG.1">
+                        <page id="DAG.1"></page>
+                        <page id="Curve Editor.1"></page>
+                    </dock>
+                </splitter>
+            </splitter>
+            <split size="389"></split>
+            <dock id="" activePageId="Properties.1">
+                <page id="Properties.1"></page>
+            </dock>
+        </splitter>
+    </window>
+</layout>
+}
+Root {
+ inputs 0
+ name data/example.nk
+ frame 29
+ first_frame 25
+ last_frame 158
+ lock_range true
+ format "640 480 0 0 640 480 1 PC_Video"
+ proxy_type scale
+ proxy_format "640 480 0 0 640 480 1 PC_Video"
+}
+Read {
+ inputs 0
+ file data/lena.jpg
+ format "512 512 0 0 512 512 1 square_512"
+ name Read1
+ xpos -317
+ ypos -466
+}
+VH_FaceDetect {
+ cascadefile data/haarcascades/haarcascade_frontalface_alt2.xml
+ name VH_FaceDetect1
+ selected true
+ xpos -112
+ ypos -436
+}
+Viewer {
+ name Viewer1
+ xpos 104
+ ypos -436
+}
