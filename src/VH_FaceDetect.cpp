@@ -5,53 +5,11 @@ static const char* const HELP = "Detects faces using the OpenCV library.";
 
 #include <stdarg.h>
 #include <stdio.h>
+#include <vector>
 
-#include <DDImage/Iop.h>
-#include <DDImage/Row.h>
-#include <DDImage/Knobs.h>
-#include <DDImage/Tile.h>
-
-#include <opencv/cv.h>
-#include <opencv/highgui.h>
+#include "VH_FaceDetect.h"
 
 using namespace DD::Image;
-
-
-//
-// DECLARATIONS
-//
-
-class VH_FaceDetect: public Iop {
-public:
-    static const Description desc;
-
-    VH_FaceDetect(Node* node);
-    virtual ~VH_FaceDetect();
-
-    virtual const char* Class() const;
-    virtual const char* displayName() const;
-    virtual const char* node_help() const;
-    virtual void knobs(Knob_Callback f);
-
-protected:
-    virtual void _validate(bool for_real);
-    virtual void _request(int x, int y, int r, int t, ChannelMask channels, int count);
-    virtual void _open();
-    virtual void engine(int y, int x, int r, ChannelMask channels, Row& row);
-    virtual void _close();
-
-private:
-    IplImage *build_opencv_image() const;
-    void print_image_info() const;
-    void detect_and_draw(IplImage *img) const;
-
-    const char *m_cascadeFile;
-    float m_circleColor[3];
-
-    IplImage *m_img;
-    CvMemStorage *m_storage;
-    CvHaarClassifierCascade *m_cascade;
-};
 
 
 //
@@ -65,6 +23,7 @@ VH_FaceDetect::VH_FaceDetect(Node *node) : Iop(node) {
     m_img = NULL;
     m_storage = cvCreateMemStorage(0);
     m_cascade = NULL;
+    m_faces = NULL;
 }
 
 
@@ -153,25 +112,45 @@ void VH_FaceDetect::_open() {
 }
 
 
-void VH_FaceDetect::engine(int y, int x, int r, ChannelMask channels, Row& row) {
-    float* p[3];
-    p[0] = row.writable(Chan_Blue);
-    p[1] = row.writable(Chan_Green);
-    p[2] = row.writable(Chan_Red);
+struct span {
+    int left;
+    int right;
 
-    if (m_img != NULL) {
-        y = m_img->height - y - 1;
-        unsigned char *pixel = (unsigned char *)m_img->imageData + y * m_img->widthStep;
-        for (int i = x; i < r; ++i) {
-            for (int channel = 0; channel < 3; ++channel)
-                p[channel][i] = pixel[channel] / 255.0f;
-            pixel += 3;
+    span(int _left, int _right) : left(_left), right(_right) {}
+};
+
+
+void VH_FaceDetect::engine(int y, int x, int r, ChannelMask channels, Row& row) {
+    Row in(x, r);
+    in.get(input0(), y, x, r, channels);
+
+    if (m_faces != NULL) {
+        std::vector<span> spans;
+        for (int f = 0; f < (m_faces ? m_faces->total : 0); ++f) {
+            CvRect* rect = (CvRect*)cvGetSeqElem(m_faces, f);
+            if (rect->y <= y && (rect->y + rect->height) > y)
+                if (rect->x <= r && (rect->x + rect->width) > x)
+                    spans.push_back(span(rect->x, rect->x + rect->width));
+        }
+
+        foreach(chan, channels) {
+            float *out = row.writable(chan);
+            for (int i = x; i < r; ++i) {
+                std::vector<span>::const_iterator s;
+                bool faceCount = 0;
+                for (s = spans.begin(); s != spans.end(); s++) {
+                    if (s->left <= i && i < s->right)
+                        ++faceCount;
+                }
+                double faceScale = (faceCount + 1.0) / (m_faces->total + 1.0);
+                out[i] = in[chan][i] * faceScale;
+            }
         }
     } else {
-        for (int i = x; i < r; ++i) {
-            p[0][i] = 0.0f;
-            p[1][i] = 0.0f;
-            p[2][i] = 0.0f;
+        foreach(chan, channels) {
+            float *out = row.writable(chan);
+            for (int i = x; i < r; ++i)
+                out[i] = in[chan][i];
         }
     }
 }
@@ -239,7 +218,7 @@ void VH_FaceDetect::print_image_info() const {
 }
 
 
-void VH_FaceDetect::detect_and_draw(IplImage *img) const {
+void VH_FaceDetect::detect_and_draw(IplImage *img) {
     if (m_cascade != NULL) {
         double scale = 1.3;
         IplImage* gray = cvCreateImage(cvSize(img->width,img->height), 8, 1);
@@ -251,22 +230,18 @@ void VH_FaceDetect::detect_and_draw(IplImage *img) const {
         cvResize(gray, small_img, CV_INTER_LINEAR);
         cvEqualizeHist(small_img, small_img);
         cvClearMemStorage(m_storage);
+        m_faces = NULL;
 
-        CvSeq* faces = cvHaarDetectObjects( small_img, m_cascade, m_storage,
-                                            1.1, 2, 0/*CV_HAAR_DO_CANNY_PRUNING*/,
-                                            cvSize(30, 30) );
-        CvScalar color = cvScalar( fast_rint(m_circleColor[2] * 255.0),
-                                   fast_rint(m_circleColor[1] * 255.0),
-                                   fast_rint(m_circleColor[0] * 255.0),
-                                   1.0 );
-        for(int i = 0; i < (faces ? faces->total : 0); i++) {
-            CvRect* r = (CvRect*)cvGetSeqElem( faces, i );
-            CvPoint center;
-            int radius;
-            center.x = cvRound((r->x + r->width*0.5)*scale);
-            center.y = cvRound((r->y + r->height*0.5)*scale);
-            radius = cvRound((r->width + r->height)*0.25*scale);
-            cvCircle(img, center, radius, color, 3, 8, 0);
+        m_faces = cvHaarDetectObjects( small_img, m_cascade, m_storage,
+                                       1.1, 2, 0/*CV_HAAR_DO_CANNY_PRUNING*/,
+                                       cvSize(30, 30) );
+        for(int i = 0; i < (m_faces ? m_faces->total : 0); i++) {
+            CvRect* r = (CvRect*)cvGetSeqElem(m_faces, i );
+            r->x *= scale;
+            r->y *= scale;
+            r->width *= scale;
+            r->height *= scale;
+            r->y = img->height - r->y - r->height;
         }
 
         cvReleaseImage( &gray );

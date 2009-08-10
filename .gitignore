@@ -1,0 +1,6 @@
+.cproject
+.project
+Makefile
+build/obj/*
+dist/*
+*.nk~
