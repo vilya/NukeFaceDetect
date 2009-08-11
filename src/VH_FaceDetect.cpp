@@ -18,7 +18,7 @@ using namespace DD::Image;
 
 VH_FaceDetect::VH_FaceDetect(Node *node) : Iop(node) {
     m_cascadeFile = NULL;
-    m_circleColor[0] = m_circleColor[1] = m_circleColor[2] = 0.8;
+    m_borderColor[0] = m_borderColor[1] = m_borderColor[2] = 0.8;
 
     m_img = NULL;
     m_storage = cvCreateMemStorage(0);
@@ -58,7 +58,7 @@ const char* VH_FaceDetect::node_help() const {
 
 void VH_FaceDetect::knobs(Knob_Callback f) {
     File_knob(f, &m_cascadeFile, "cascadefile", "cascadefile");
-    Color_knob(f, m_circleColor, "circleColor", "circle color");
+    Color_knob(f, m_borderColor, "borderColor", "border color");
 }
 
 
@@ -154,7 +154,7 @@ void VH_FaceDetect::engine(int y, int left, int right, ChannelMask channels, Row
                 }
 
                 if (on_edge) {
-                    out[x] = 1.0;
+                    out[x] = border_color(chan);
                 } else {
                     double faceScale = (faceCount + 1.0) / (m_faces->total + 1.0);
                     out[x] = in[chan][x] * faceScale;
@@ -251,6 +251,20 @@ void VH_FaceDetect::detect_and_draw(IplImage *img) {
         }
 
         cvReleaseImage( &gray );
+    }
+}
+
+
+inline float VH_FaceDetect::border_color(Channel chan) const {
+    switch (chan) {
+    case Chan_Red:
+        return m_borderColor[0];
+    case Chan_Green:
+        return m_borderColor[1];
+    case Chan_Blue:
+        return m_borderColor[2];
+    default:
+        return 1.0;
     }
 }
 

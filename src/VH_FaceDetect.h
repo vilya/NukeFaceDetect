@@ -13,6 +13,7 @@
 #include <DDImage/Knobs.h>
 #include <DDImage/Row.h>
 #include <DDImage/Tile.h>
+#include <DDImage/Channel.h>
 
 #include <opencv/cv.h>
 #include <opencv/highgui.h>
@@ -45,9 +46,10 @@ private:
     IplImage *build_opencv_image() const;
     void print_image_info() const;
     void detect_and_draw(IplImage *img);
+    float border_color(DD::Image::Channel chan) const;
 
     const char *m_cascadeFile;
-    float m_circleColor[3];
+    float m_borderColor[3];
 
     IplImage *m_img;
     CvMemStorage *m_storage;
