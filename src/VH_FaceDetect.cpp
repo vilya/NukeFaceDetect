@@ -15,11 +15,14 @@ using namespace DD::Image;
 // DECLARATIONS
 //
 
+// A helper structure for rendering.
 struct span {
     int left;
     int right;
+    bool horiz_edge;
 
-    span(int _left, int _right) : left(_left), right(_right) {}
+    span(int _left, int _right, bool _horiz_edge) :
+        left(_left), right(_right), horiz_edge(_horiz_edge) {}
 };
 
 
@@ -29,9 +32,8 @@ struct span {
 
 VH_FaceDetect::VH_FaceDetect(Node *node) : Iop(node) {
     m_cascadeFile = NULL;
-    m_circleColor[0] = m_circleColor[1] = m_circleColor[2] = 0.8;
+    m_borderColor[0] = m_borderColor[1] = m_borderColor[2] = 0.8;
 
-    m_img = NULL;
     m_storage = cvCreateMemStorage(0);
     m_cascade = NULL;
     m_faces = NULL;
@@ -39,10 +41,6 @@ VH_FaceDetect::VH_FaceDetect(Node *node) : Iop(node) {
 
 
 VH_FaceDetect::~VH_FaceDetect() {
-    if (m_img != NULL) {
-        cvReleaseImage(&m_img);
-        m_img = NULL;
-    }
     if (m_cascade != NULL) {
         cvRelease((void **)&m_cascade);
         m_cascade = NULL;
@@ -69,7 +67,7 @@ const char* VH_FaceDetect::node_help() const {
 
 void VH_FaceDetect::knobs(Knob_Callback f) {
     File_knob(f, &m_cascadeFile, "cascadefile", "cascadefile");
-    Color_knob(f, m_circleColor, "circleColor", "circle color");
+    Color_knob(f, m_borderColor, "borderColor", "border color");
 }
 
 
@@ -91,18 +89,13 @@ void VH_FaceDetect::_request(int x, int y, int r, int t,
 
 
 void VH_FaceDetect::_open() {
-    if (m_img != NULL) {
-        cvReleaseImage(&m_img);
-        m_img = NULL;
-    }
-
     if (m_cascade != NULL) {
         cvRelease((void **)&m_cascade);
         m_cascade = NULL;
     }
 
-    m_img = build_opencv_image();
-    if (m_img == NULL) {
+    IplImage *img = build_opencv_image();
+    if (img == NULL) {
         error("Unable to load the source image.");
         return;
     }
@@ -116,8 +109,9 @@ void VH_FaceDetect::_open() {
         }
     }
 
-    if (m_img != NULL && m_cascade != NULL)
-        detect_and_draw(m_img);
+    if (m_cascade != NULL)
+        detect_faces(img);
+    cvReleaseImage(&img);
 }
 
 
@@ -131,20 +125,33 @@ void VH_FaceDetect::engine(int y, int left, int right, ChannelMask channels, Row
             CvRect* rect = (CvRect*)cvGetSeqElem(m_faces, face);
             if (rect->y <= y && (rect->y + rect->height) > y)
                 if (rect->x <= right && (rect->x + rect->width) > left)
-                    spans.push_back(span(rect->x, rect->x + rect->width));
+                    spans.push_back(span(rect->x, rect->x + rect->width,
+                            y == rect->y || y == (rect->y + rect->height - 1) ));
         }
 
         foreach(chan, channels) {
             float *out = row.writable(chan);
             for (int x = left; x < right; ++x) {
                 std::vector<span>::const_iterator s;
-                bool faceCount = 0;
+                int faceCount = 0;
+                bool on_edge = false;
                 for (s = spans.begin(); s != spans.end(); s++) {
-                    if (s->left <= x && x < s->right)
-                        ++faceCount;
+                    if (s->left <= x && x < s->right) {
+                        if (s->left == x || (s->right - 1) == x || s->horiz_edge) {
+                            on_edge = true;
+                            break;
+                        } else {
+                            ++faceCount;
+                        }
+                    }
                 }
-                double faceScale = (faceCount + 1.0) / (m_faces->total + 1.0);
-                out[x] = in[chan][x] * faceScale;
+
+                if (on_edge) {
+                    out[x] = border_color(chan);
+                } else {
+                    double faceScale = (faceCount + 1.0) / (m_faces->total + 1.0);
+                    out[x] = in[chan][x] * faceScale;
+                }
             }
         }
     } else {
@@ -158,10 +165,6 @@ void VH_FaceDetect::engine(int y, int left, int right, ChannelMask channels, Row
 
 
 void VH_FaceDetect::_close() {
-    if (m_img != NULL) {
-        cvReleaseImage(&m_img);
-        m_img = NULL;
-    }
 }
 
 
@@ -203,25 +206,34 @@ IplImage *VH_FaceDetect::build_opencv_image() const {
 }
 
 
-void VH_FaceDetect::detect_and_draw(IplImage *img) {
+void VH_FaceDetect::detect_faces(IplImage *img) {
     if (m_cascade != NULL) {
         IplImage* gray = cvCreateImage(cvSize(img->width,img->height), 8, 1);
-
         cvCvtColor(img, gray, CV_BGR2GRAY);
         cvEqualizeHist(gray, gray);
-        cvEqualizeHist(gray, gray);
         cvClearMemStorage(m_storage);
-        m_faces = NULL;
-
-        m_faces = cvHaarDetectObjects( gray, m_cascade, m_storage,
-                                       1.1, 2, 0/*CV_HAAR_DO_CANNY_PRUNING*/,
-                                       cvSize(30, 30) );
+        m_faces = cvHaarDetectObjects(gray, m_cascade, m_storage,
+                                      1.1, 2, 0/*CV_HAAR_DO_CANNY_PRUNING*/,
+                                      cvSize(30, 30));
         for(int i = 0; i < (m_faces ? m_faces->total : 0); i++) {
             CvRect* r = (CvRect*)cvGetSeqElem(m_faces, i);
             r->y = img->height - r->y - r->height;
         }
-
         cvReleaseImage( &gray );
+    }
+}
+
+
+inline float VH_FaceDetect::border_color(Channel chan) const {
+    switch (chan) {
+    case Chan_Red:
+        return m_borderColor[0];
+    case Chan_Green:
+        return m_borderColor[1];
+    case Chan_Blue:
+        return m_borderColor[2];
+    default:
+        return 1.0;
     }
 }
 
