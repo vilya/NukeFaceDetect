@@ -4,15 +4,15 @@ OBJDIR = build/obj
 DISTDIR = dist
 
 # Set this to the directory OpenCV is installed in.
-OPENCVDIR ?= ???
+OPENCVDIR ?= /usr/local
 
-ALL = $(DISTDIR)/FaceDetect.dylib
+ALL = $(DISTDIR)/VH_FaceDetect.dylib
 LINKS = $(foreach a,$(ALL),$(HOME)/.nuke/$(notdir $(a)))
 
 CXX ?= g++
 LINK ?= g++
-CXXFLAGS ?= -g -c -DUSE_GLEW -I$(NDKDIR)/include -I$(OPENCVDIR)/include -isysroot /Developer/SDKs/MacOSX10.4u.sdk -arch ppc -arch i386
-LINKFLAGS ?= -L$(NDKDIR) -L$(OPENCVDIR)/lib -Wl,-syslibroot,/Developer/SDKs/MacOSX10.4u.sdk -arch ppc -arch i386
+CXXFLAGS ?= -g -c -DUSE_GLEW -I$(NDKDIR)/include -I$(OPENCVDIR)/include -isysroot /Developer/SDKs/MacOSX10.4u.sdk -arch i386
+LINKFLAGS ?= -L$(NDKDIR) -L$(OPENCVDIR)/lib -Wl,-syslibroot,/Developer/SDKs/MacOSX10.4u.sdk -arch i386
 LIBS ?= -lDDImage -lcxcore -lcv -lhighgui -lcvaux
 LINKFLAGS += -bundle
 FRAMEWORKS ?= -framework QuartzCore -framework IOKit -framework CoreFoundation -framework Carbon -framework ApplicationServices -framework OpenGL -framework AGL -framework Quicktime
