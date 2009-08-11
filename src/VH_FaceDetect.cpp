@@ -115,41 +115,56 @@ void VH_FaceDetect::_open() {
 struct span {
     int left;
     int right;
+    bool horiz_edge;
 
-    span(int _left, int _right) : left(_left), right(_right) {}
+    span(int _left, int _right, bool _horiz_edge) :
+        left(_left), right(_right), horiz_edge(_horiz_edge) {}
 };
 
 
-void VH_FaceDetect::engine(int y, int x, int r, ChannelMask channels, Row& row) {
-    Row in(x, r);
-    in.get(input0(), y, x, r, channels);
+void VH_FaceDetect::engine(int y, int left, int right, ChannelMask channels, Row& row) {
+    Row in(left, right);
+    in.get(input0(), y, left, right, channels);
 
     if (m_faces != NULL) {
         std::vector<span> spans;
         for (int f = 0; f < (m_faces ? m_faces->total : 0); ++f) {
             CvRect* rect = (CvRect*)cvGetSeqElem(m_faces, f);
             if (rect->y <= y && (rect->y + rect->height) > y)
-                if (rect->x <= r && (rect->x + rect->width) > x)
-                    spans.push_back(span(rect->x, rect->x + rect->width));
+                if (rect->x <= right && (rect->x + rect->width) > left)
+                    spans.push_back(span(rect->x, rect->x + rect->width,
+                            y == rect->y || y == (rect->y + rect->height - 1) ));
         }
 
         foreach(chan, channels) {
             float *out = row.writable(chan);
-            for (int i = x; i < r; ++i) {
+            for (int x = left; x < right; ++x) {
                 std::vector<span>::const_iterator s;
-                bool faceCount = 0;
+                int faceCount = 0;
+                bool on_edge = false;
                 for (s = spans.begin(); s != spans.end(); s++) {
-                    if (s->left <= i && i < s->right)
-                        ++faceCount;
+                    if (s->left <= x && x < s->right) {
+                        if (s->left == x || (s->right - 1) == x || s->horiz_edge) {
+                            on_edge = true;
+                            break;
+                        } else {
+                            ++faceCount;
+                        }
+                    }
                 }
-                double faceScale = (faceCount + 1.0) / (m_faces->total + 1.0);
-                out[i] = in[chan][i] * faceScale;
+
+                if (on_edge) {
+                    out[x] = 1.0;
+                } else {
+                    double faceScale = (faceCount + 1.0) / (m_faces->total + 1.0);
+                    out[x] = in[chan][x] * faceScale;
+                }
             }
         }
     } else {
         foreach(chan, channels) {
             float *out = row.writable(chan);
-            for (int i = x; i < r; ++i)
+            for (int i = left; i < right; ++i)
                 out[i] = in[chan][i];
         }
     }
@@ -220,32 +235,22 @@ void VH_FaceDetect::print_image_info() const {
 
 void VH_FaceDetect::detect_and_draw(IplImage *img) {
     if (m_cascade != NULL) {
-        double scale = 1.3;
         IplImage* gray = cvCreateImage(cvSize(img->width,img->height), 8, 1);
-        IplImage* small_img = cvCreateImage(
-                cvSize(cvRound (img->width/scale), cvRound (img->height/scale)),
-                8, 1);
 
         cvCvtColor(img, gray, CV_BGR2GRAY);
-        cvResize(gray, small_img, CV_INTER_LINEAR);
-        cvEqualizeHist(small_img, small_img);
+        cvEqualizeHist(gray, gray);
         cvClearMemStorage(m_storage);
         m_faces = NULL;
 
-        m_faces = cvHaarDetectObjects( small_img, m_cascade, m_storage,
+        m_faces = cvHaarDetectObjects( gray, m_cascade, m_storage,
                                        1.1, 2, 0/*CV_HAAR_DO_CANNY_PRUNING*/,
                                        cvSize(30, 30) );
         for(int i = 0; i < (m_faces ? m_faces->total : 0); i++) {
             CvRect* r = (CvRect*)cvGetSeqElem(m_faces, i );
-            r->x *= scale;
-            r->y *= scale;
-            r->width *= scale;
-            r->height *= scale;
             r->y = img->height - r->y - r->height;
         }
 
         cvReleaseImage( &gray );
-        cvReleaseImage( &small_img );
     }
 }
 
