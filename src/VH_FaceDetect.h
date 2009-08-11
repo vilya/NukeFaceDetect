@@ -44,14 +44,12 @@ protected:
 
 private:
     IplImage *build_opencv_image() const;
-    void print_image_info() const;
-    void detect_and_draw(IplImage *img);
+    void detect_faces(IplImage *img);
     float border_color(DD::Image::Channel chan) const;
 
     const char *m_cascadeFile;
     float m_borderColor[3];
 
-    IplImage *m_img;
     CvMemStorage *m_storage;
     CvHaarClassifierCascade *m_cascade;
     CvSeq *m_faces;

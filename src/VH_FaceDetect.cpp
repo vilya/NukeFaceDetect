@@ -13,6 +13,21 @@ using namespace DD::Image;
 
 
 //
+// DECLARATIONS
+//
+
+// A helper structure for rendering.
+struct span {
+    int left;
+    int right;
+    bool horiz_edge;
+
+    span(int _left, int _right, bool _horiz_edge) :
+        left(_left), right(_right), horiz_edge(_horiz_edge) {}
+};
+
+
+//
 // PUBLIC METHODS
 //
 
@@ -20,7 +35,6 @@ VH_FaceDetect::VH_FaceDetect(Node *node) : Iop(node) {
     m_cascadeFile = NULL;
     m_borderColor[0] = m_borderColor[1] = m_borderColor[2] = 0.8;
 
-    m_img = NULL;
     m_storage = cvCreateMemStorage(0);
     m_cascade = NULL;
     m_faces = NULL;
@@ -28,10 +42,6 @@ VH_FaceDetect::VH_FaceDetect(Node *node) : Iop(node) {
 
 
 VH_FaceDetect::~VH_FaceDetect() {
-    if (m_img != NULL) {
-        cvReleaseImage(&m_img);
-        m_img = NULL;
-    }
     if (m_cascade != NULL) {
         cvRelease((void **)&m_cascade);
         m_cascade = NULL;
@@ -80,22 +90,16 @@ void VH_FaceDetect::_request(int x, int y, int r, int t,
 
 
 void VH_FaceDetect::_open() {
-    if (m_img != NULL) {
-        cvReleaseImage(&m_img);
-        m_img = NULL;
-    }
-
     if (m_cascade != NULL) {
         cvRelease((void **)&m_cascade);
         m_cascade = NULL;
     }
 
-    m_img = build_opencv_image();
-    if (m_img == NULL) {
+    IplImage *img = build_opencv_image();
+    if (img == NULL) {
         error("Unable to load the source image.");
         return;
     }
-    //print_image_info();
 
     if (m_cascadeFile != NULL && strlen(m_cascadeFile) > 0) {
         m_cascade = (CvHaarClassifierCascade *)cvLoad(m_cascadeFile, m_storage, 0, 0);
@@ -106,20 +110,10 @@ void VH_FaceDetect::_open() {
         }
     }
 
-    if (m_img != NULL && m_cascade != NULL) {
-        detect_and_draw(m_img);
-    }
+    if (m_cascade != NULL)
+        detect_faces(img);
+    cvReleaseImage(&img);
 }
-
-
-struct span {
-    int left;
-    int right;
-    bool horiz_edge;
-
-    span(int _left, int _right, bool _horiz_edge) :
-        left(_left), right(_right), horiz_edge(_horiz_edge) {}
-};
 
 
 void VH_FaceDetect::engine(int y, int left, int right, ChannelMask channels, Row& row) {
@@ -172,10 +166,6 @@ void VH_FaceDetect::engine(int y, int left, int right, ChannelMask channels, Row
 
 
 void VH_FaceDetect::_close() {
-    if (m_img != NULL) {
-        cvReleaseImage(&m_img);
-        m_img = NULL;
-    }
 }
 
 
@@ -217,39 +207,19 @@ IplImage *VH_FaceDetect::build_opencv_image() const {
 }
 
 
-void VH_FaceDetect::print_image_info() const {
-    if (m_img != NULL) {
-        fprintf(stderr, "Loaded image:\n");
-        fprintf(stderr, "    # channels:    %d\n", m_img->nChannels);
-        fprintf(stderr, "    alpha channel: %d\n", m_img->alphaChannel);
-        fprintf(stderr, "    depth:         %d\n", m_img->depth);
-        fprintf(stderr, "    data order:    %d\n", m_img->dataOrder);
-        fprintf(stderr, "    origin:        %d\n", m_img->origin);
-        fprintf(stderr, "    align:         %d\n", m_img->align);
-        fprintf(stderr, "    width:         %d\n", m_img->width);
-        fprintf(stderr, "    height:        %d\n", m_img->height);
-        fprintf(stderr, "    width step:    %d\n", m_img->widthStep);
-    }
-}
-
-
-void VH_FaceDetect::detect_and_draw(IplImage *img) {
+void VH_FaceDetect::detect_faces(IplImage *img) {
     if (m_cascade != NULL) {
         IplImage* gray = cvCreateImage(cvSize(img->width,img->height), 8, 1);
-
         cvCvtColor(img, gray, CV_BGR2GRAY);
         cvEqualizeHist(gray, gray);
         cvClearMemStorage(m_storage);
-        m_faces = NULL;
-
-        m_faces = cvHaarDetectObjects( gray, m_cascade, m_storage,
-                                       1.1, 2, 0/*CV_HAAR_DO_CANNY_PRUNING*/,
-                                       cvSize(30, 30) );
+        m_faces = cvHaarDetectObjects(gray, m_cascade, m_storage,
+                                      1.1, 2, 0/*CV_HAAR_DO_CANNY_PRUNING*/,
+                                      cvSize(30, 30));
         for(int i = 0; i < (m_faces ? m_faces->total : 0); i++) {
-            CvRect* r = (CvRect*)cvGetSeqElem(m_faces, i );
+            CvRect* r = (CvRect*)cvGetSeqElem(m_faces, i);
             r->y = img->height - r->y - r->height;
         }
-
         cvReleaseImage( &gray );
     }
 }
