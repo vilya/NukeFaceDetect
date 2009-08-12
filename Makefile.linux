@@ -5,7 +5,7 @@ DISTDIR = dist
 
 OPENCVDIR ?= /mnt/images1/vharvey/apps/opencv-1.0.0
 
-ALL = $(DISTDIR)/VH_FaceDetect.so
+ALL = $(DISTDIR)/VH_FaceDetect.so $(DISTDIR)/VH_FaceMask.so
 LINKS = $(foreach a,$(ALL),$(HOME)/.nuke/$(notdir $(a)))
 
 # CXX ?= g++-4.1

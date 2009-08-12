@@ -6,7 +6,7 @@ DISTDIR = dist
 # Set this to the directory OpenCV is installed in.
 OPENCVDIR ?= /usr/local
 
-ALL = $(DISTDIR)/VH_FaceDetect.dylib
+ALL = $(DISTDIR)/VH_FaceDetect.dylib $(DISTDIR)/VH_FaceMask.dylib
 LINKS = $(foreach a,$(ALL),$(HOME)/.nuke/$(notdir $(a)))
 
 CXX ?= g++
